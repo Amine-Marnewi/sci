@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Upload } from "lucide-react"
@@ -45,8 +44,31 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
   }
 
   const normalizeHeader = (header: string): string => {
-    return header
-      .trim()
+    // Trim and handle special cases first
+    const trimmed = header.trim()
+    
+    // Handle exact matches for known columns
+    const exactMatches: Record<string, string> = {
+      "Product": "product",
+      "Brand": "brand",
+      "Rayon": "rayon",
+      "Famille": "famille",
+      "Sous-famille": "sous_famille",
+      "Grammage": "grammage",
+      "Price Before (TND)": "price_before_tnd",
+      "Price After (TND)": "price_after_tnd",
+      "URL": "url",
+      "promo_date_debut": "promo_date_debut",
+      "promo_date_fin": "promo_date_fin",
+      "Source": "source"
+    }
+    
+    if (exactMatches[trimmed]) {
+      return exactMatches[trimmed]
+    }
+    
+    // Fallback to normalization
+    return trimmed
       .toLowerCase()
       .replace(/[^a-z0-9]+/gi, "_")
       .replace(/_+/g, "_")
@@ -68,14 +90,13 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
         return
       }
 
-      // Détecter le délimiteur à partir de la première ligne
       const delimiter = detectDelimiter(lines[0])
-
-      // Parser les en-têtes
       const headers = parseCSVLine(lines[0], delimiter).map((header) => header.trim())
       const normalizedHeaders = headers.map(normalizeHeader)
 
-      // Vérifier les colonnes requises
+      console.log("Original headers:", headers)
+      console.log("Normalized headers:", normalizedHeaders)
+
       const requiredFields = [
         "product",
         "brand",
@@ -88,12 +109,13 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
         "url",
         "promo_date_debut",
         "promo_date_fin",
+        "source"
       ]
 
       const missingFields = requiredFields.filter((field) => !normalizedHeaders.includes(field))
 
       if (missingFields.length > 0) {
-        alert(`Champs manquants dans le CSV: ${missingFields.join(", ")}.\n\nEn-têtes détectés: ${headers.join(", ")}`)
+        alert(`Champs manquants dans le CSV: ${missingFields.join(", ")}.\n\nEn-têtes détectés: ${headers.join(", ")}\n\nEn-têtes normalisés: ${normalizedHeaders.join(", ")}`)
         return
       }
 
@@ -116,20 +138,18 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
             const normalizedHeader = normalizeHeader(header)
             let value: any = values[index] || ""
 
-            // Conversion des types
             if (["grammage", "price_before_tnd", "price_after_tnd"].includes(normalizedHeader)) {
-              // Remplacer les virgules par des points pour les nombres
               value = value.toString().replace(",", ".")
-              value = Number.parseFloat(value) || 0
+              value = parseFloat(value) || 0
             }
 
             product[normalizedHeader] = value
           })
 
-          // Mapper les noms normalisés aux noms attendus par l'interface Product
           const mappedProduct: Product = {
             Product: product.product || "",
             Brand: product.brand || "",
+            Source: product.source || "",
             Rayon: product.rayon || "",
             Famille: product.famille || "",
             "Sous-famille": product.sous_famille || "",
@@ -156,6 +176,8 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
         return
       }
 
+      console.log("Imported data sample:", data[0])
+      
       onUpload(data)
       alert(`${data.length} produits importés avec succès ! ${errors.length > 0 ? `(${errors.length} erreurs)` : ""}`)
     } catch (error) {

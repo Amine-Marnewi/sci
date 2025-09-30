@@ -38,6 +38,7 @@ import Link from "next/link"
 export interface Product {
   Product: string
   Brand: string
+  Source?: string // Added Source field for store/supermarket information
   Rayon: string
   Famille: string
   "Sous-famille": string
@@ -74,6 +75,7 @@ export default function DashboardPage() {
     grammageMax: "",
     promoOnly: false,
     searchTerm: "",
+    source: "all", // Added source filter
   })
 
   const filteredData = useMemo(() => {
@@ -81,6 +83,7 @@ export default function DashboardPage() {
       const matchesRayon = filters.rayon === "all" || product.Rayon === filters.rayon
       const matchesSousFamille = filters.sousFamille === "all" || product["Sous-famille"] === filters.sousFamille
       const matchesMarque = filters.marque === "all" || product.Brand === filters.marque
+      const matchesSource = filters.source === "all" || product.Source === filters.source // Added source filter check
 
       const priceMin = filters.priceMin ? Number.parseFloat(filters.priceMin) : null
       const priceMax = filters.priceMax ? Number.parseFloat(filters.priceMax) : null
@@ -102,6 +105,7 @@ export default function DashboardPage() {
         matchesRayon &&
         matchesSousFamille &&
         matchesMarque &&
+        matchesSource && // Added source filter check
         matchesPriceMin &&
         matchesPriceMax &&
         matchesGrammageMin &&
@@ -119,6 +123,7 @@ export default function DashboardPage() {
   const uniqueMarques = [...new Set(data.map((p) => p.Brand))].filter(
     (brand) => brand.toLowerCase().trim() !== brandInfo.brandName.toLowerCase().trim(),
   )
+  const uniqueSources = [...new Set(data.map((p) => p.Source))].filter((source) => source !== undefined)
 
   const handleCSVUpload = async (newData: Product[]) => {
     try {
@@ -416,6 +421,25 @@ export default function DashboardPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Source</label>
+                <Select
+                  value={filters.source}
+                  onValueChange={(value) => setFilters((prev) => ({ ...prev, source: value }))} // Added source filter
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Toutes les sources" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Toutes les sources</SelectItem>
+                    {uniqueSources.map((source) => (
+                      <SelectItem key={source} value={source}>
+                        {source}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
@@ -424,7 +448,7 @@ export default function DashboardPage() {
                   type="number"
                   placeholder="0"
                   value={filters.priceMin}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, priceMin: e.target.value }))}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, priceMin: e.target.value }))} // Added source filter
                 />
               </div>
               <div>
@@ -433,7 +457,7 @@ export default function DashboardPage() {
                   type="number"
                   placeholder="100"
                   value={filters.priceMax}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, priceMax: e.target.value }))}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, priceMax: e.target.value }))} // Added source filter
                 />
               </div>
               <div>
@@ -442,7 +466,7 @@ export default function DashboardPage() {
                   type="number"
                   placeholder="0"
                   value={filters.grammageMin}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, grammageMin: e.target.value }))}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, grammageMin: e.target.value }))} // Added source filter
                 />
               </div>
               <div className="flex items-end">

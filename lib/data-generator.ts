@@ -148,11 +148,9 @@ export function generateDynamicData(
 ): Product[] {
   const products: Product[] = []
 
-  // Get brand configuration or create dynamic one
   let brandConfig = BRAND_CONFIGURATIONS[userBrand]
 
   if (!brandConfig && industry) {
-    // Create dynamic configuration based on industry
     const industryConfig = INDUSTRY_CONFIGURATIONS[industry]
     if (industryConfig) {
       brandConfig = {
@@ -167,7 +165,6 @@ export function generateDynamicData(
   }
 
   if (!brandConfig) {
-    // Fallback to generic configuration
     brandConfig = {
       name: userBrand,
       industry: industry || "Général",
@@ -179,38 +176,49 @@ export function generateDynamicData(
   }
 
   const allBrands = [userBrand, ...brandConfig.competitors]
+  const possibleSources = ["Carrefour", "Aziza", "Géant", "Monoprix", "Magasin Général"]
 
-  // Generate products for each brand
   allBrands.forEach((brand) => {
     const isUserBrand = brand === userBrand
     const brandProductCount = isUserBrand
       ? Math.ceil(productCount * 0.4)
-      : // User brand gets 40% of products
-        Math.ceil((productCount * 0.6) / brandConfig.competitors.length) // Competitors share 60%
+      : Math.ceil((productCount * 0.6) / brandConfig.competitors.length)
 
     for (let i = 0; i < brandProductCount; i++) {
       const category = brandConfig.productCategories[Math.floor(Math.random() * brandConfig.productCategories.length)]
-
       const productTemplate = category.products[Math.floor(Math.random() * category.products.length)]
-
       const sousFamille = category.sousFamilles[Math.floor(Math.random() * category.sousFamilles.length)]
+      const grammage = productTemplate.grammageOptions[Math.floor(Math.random() * productTemplate.grammageOptions.length)]
 
-      const grammage =
-        productTemplate.grammageOptions[Math.floor(Math.random() * productTemplate.grammageOptions.length)]
-
-      // Calculate price with variation
       const priceVariation = (Math.random() - 0.5) * 2 * productTemplate.priceVariation
-      const basePrice = productTemplate.basePrice * (grammage / 500) // Adjust for grammage
+      const basePrice = productTemplate.basePrice * (grammage / 500)
       const priceBefore = Math.max(1, basePrice + basePrice * priceVariation)
 
-      // Determine if product has promotion
       const hasPromo = Math.random() < brandConfig.promotionRate
-      const discountRate = hasPromo ? 0.1 + Math.random() * 0.3 : 0 // 10-40% discount
+      const discountRate = hasPromo ? 0.1 + Math.random() * 0.3 : 0
       const priceAfter = hasPromo ? priceBefore * (1 - discountRate) : priceBefore
+
+      const source = possibleSources[Math.floor(Math.random() * possibleSources.length)]
+
+      let promoDateDebut = ""
+      let promoDateFin = ""
+      if (hasPromo) {
+        const startMonth = Math.floor(Math.random() * 12)
+        const startDay = Math.floor(Math.random() * 28) + 1
+        const duration = Math.floor(Math.random() * 30) + 7
+        const startDate = new Date(2024, startMonth, startDay)
+        const endDate = new Date(startDate)
+        endDate.setDate(endDate.getDate() + duration)
+
+        // Format as DD/MM/YYYY
+        promoDateDebut = `${String(startDate.getDate()).padStart(2, '0')}/${String(startDate.getMonth() + 1).padStart(2, '0')}/${startDate.getFullYear()}`
+        promoDateFin = `${String(endDate.getDate()).padStart(2, '0')}/${String(endDate.getMonth() + 1).padStart(2, '0')}/${endDate.getFullYear()}`
+      }
 
       const product: Product = {
         Product: `${productTemplate.name} ${grammage}${grammage < 1000 ? "ml" : "g"}`,
         Brand: brand,
+        Source: source,
         Rayon: category.rayon,
         Famille: category.famille,
         "Sous-famille": sousFamille,
@@ -218,8 +226,8 @@ export function generateDynamicData(
         "Price Before (TND)": Math.round(priceBefore * 100) / 100,
         "Price After (TND)": Math.round(priceAfter * 100) / 100,
         URL: `https://example.com/${brand.toLowerCase()}-${productTemplate.name.toLowerCase().replace(/\s+/g, "-")}`,
-        promo_date_debut: hasPromo ? "2024-01-15" : "",
-        promo_date_fin: hasPromo ? "2024-02-15" : "",
+        promo_date_debut: promoDateDebut,
+        promo_date_fin: promoDateFin,
       }
 
       products.push(product)
