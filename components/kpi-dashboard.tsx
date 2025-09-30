@@ -1,7 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { TrendingUp, TrendingDown, AlertTriangle, Target, ShoppingCart, Percent, DollarSign, Award } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { TrendingUp, TrendingDown, ShoppingCart, Percent, DollarSign } from "lucide-react"
 import type { Product } from "@/app/dashboard/page"
 import { useBrand } from "@/contexts/brand-context"
 
@@ -69,49 +67,33 @@ export function KPIDashboard({ data }: KPIDashboardProps) {
         }, 0) / userPromoProducts.length
       : 0
 
-  const competitivenessScore = Math.min(
-    100,
-    Math.max(
-      0,
-      (priceCompetitiveness > 0 ? 30 : 10) +
-        (isNaN(marketShare) ? 0 : marketShare * 0.5) +
-        (userPromoRate > competitorPromoRate ? 20 : 10) +
-        (avgDiscount > 10 ? 20 : 10),
-    ),
-  )
-
   const kpis = [
     {
       title: `Produits ${brandInfo.brandName}`,
       value: userCount.toString(),
-      subtitle: `sur ${totalProducts} total`,
+      subtitle: `${(isNaN(marketShare) ? 0 : marketShare).toFixed(1)}% du total (${totalProducts} produits)`,
       icon: ShoppingCart,
       color: "text-green-600",
       bgColor: "bg-green-50",
       trend: userCount > competitorProducts.length ? "up" : "down",
     },
     {
-      title: "% total de la marque",
-      value: `${(isNaN(marketShare) ? 0 : marketShare).toFixed(1)}%`,
-      subtitle: "dans la sélection",
-      icon: Target,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-      trend: marketShare > 50 ? "up" : "down",
-    },
-    {
       title: `Prix Moyen ${brandInfo.brandName}`,
       value: `${(isNaN(userAvgPrice) ? 0 : userAvgPrice).toFixed(2)} TND`,
-      subtitle: `vs ${(isNaN(competitorAvgPrice) ? 0 : competitorAvgPrice).toFixed(2)} TND concurrents`,
+      subtitle: isNaN(priceCompetitiveness)
+        ? `vs ${(isNaN(competitorAvgPrice) ? 0 : competitorAvgPrice).toFixed(2)} TND concurrents`
+        : priceCompetitiveness > 0
+          ? `${priceCompetitiveness.toFixed(1)}% moins cher`
+          : `${Math.abs(priceCompetitiveness).toFixed(1)}% plus cher`,
       icon: DollarSign,
       color: "text-yellow-600",
       bgColor: "bg-yellow-50",
       trend: userAvgPrice < competitorAvgPrice ? "up" : "down",
     },
     {
-      title: "Fréquence de Promos",
+      title: "Taux de Promos",
       value: `${(isNaN(userPromoRate) ? 0 : userPromoRate).toFixed(1)}%`,
-      subtitle: `vs ${(isNaN(competitorPromoRate) ? 0 : competitorPromoRate).toFixed(1)}% concurrents`,
+      subtitle: `Remise moyenne: ${(isNaN(avgDiscount) ? 0 : avgDiscount).toFixed(1)}% (${userPromoProducts.length} produits)`,
       icon: Percent,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
@@ -119,45 +101,10 @@ export function KPIDashboard({ data }: KPIDashboardProps) {
     },
   ]
 
-  const advancedKpis = [
-    {
-      title: "Compétitivité Prix",
-      value: isNaN(priceCompetitiveness)
-        ? "N/A"
-        : priceCompetitiveness > 0
-          ? `+${priceCompetitiveness.toFixed(1)}%`
-          : `${priceCompetitiveness.toFixed(1)}%`,
-      description: isNaN(priceCompetitiveness)
-        ? "Données insuffisantes"
-        : priceCompetitiveness > 0
-          ? `${brandInfo.brandName} moins cher`
-          : `${brandInfo.brandName} plus cher`,
-      status: isNaN(priceCompetitiveness) ? "neutral" : priceCompetitiveness > 0 ? "positive" : "negative",
-    },
-    {
-      title: "Remise Moyenne",
-      value: `${(isNaN(avgDiscount) ? 0 : avgDiscount).toFixed(1)}%`,
-      description: `sur ${userPromoProducts.length} produits en promo`,
-      status: isNaN(avgDiscount) ? "neutral" : avgDiscount > 15 ? "positive" : avgDiscount > 5 ? "neutral" : "negative",
-    },
-    {
-      title: "Score de Compétitivité",
-      value: `${(isNaN(competitivenessScore) ? 0 : competitivenessScore).toFixed(0)}/100`,
-      description: "Indice global de performance",
-      status: isNaN(competitivenessScore)
-        ? "neutral"
-        : competitivenessScore > 70
-          ? "positive"
-          : competitivenessScore > 40
-            ? "neutral"
-            : "negative",
-    },
-  ]
-
   return (
     <div className="space-y-6">
       {/* KPI principaux */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {kpis.map((kpi, index) => (
           <Card key={index} className="relative overflow-hidden">
             <CardContent className="p-6">
@@ -182,101 +129,6 @@ export function KPIDashboard({ data }: KPIDashboardProps) {
           </Card>
         ))}
       </div>
-
-      {/* KPI avancés */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {advancedKpis.map((kpi, index) => (
-          <Card key={index} className="border-l-4 border-l-yellow-400">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center justify-between">
-                {kpi.title}
-                <Badge
-                  variant={
-                    kpi.status === "positive" ? "default" : kpi.status === "negative" ? "destructive" : "secondary"
-                  }
-                  className={kpi.status === "positive" ? "bg-green-500" : ""}
-                >
-                  {kpi.status === "positive" ? "Excellent" : kpi.status === "negative" ? "À améliorer" : "Correct"}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <p className="text-3xl font-bold text-gray-900">{kpi.value}</p>
-                <p className="text-sm text-gray-600">{kpi.description}</p>
-                {kpi.title === "Score de Compétitivité" && (
-                  <Progress value={isNaN(competitivenessScore) ? 0 : competitivenessScore} className="mt-3" />
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Alertes et recommandations */}
-      <Card className="border-l-4 border-l-orange-400">
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />
-            Alertes & Recommandations Stratégiques
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {!isNaN(priceCompetitiveness) && priceCompetitiveness < -10 && (
-              <div className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5" />
-                <div>
-                  <p className="font-medium text-red-800">Prix non compétitifs détectés</p>
-                  <p className="text-sm text-red-600">
-                    Les prix {brandInfo.brandName} sont en moyenne {Math.abs(priceCompetitiveness).toFixed(1)}% plus
-                    élevés que la concurrence.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {!isNaN(userPromoRate) && !isNaN(competitorPromoRate) && userPromoRate < competitorPromoRate && (
-              <div className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5" />
-                <div>
-                  <p className="font-medium text-yellow-800">Activité promotionnelle faible</p>
-                  <p className="text-sm text-yellow-600">
-                    Fréquence de promos {brandInfo.brandName} ({userPromoRate.toFixed(1)}%) inférieure aux concurrents (
-                    {competitorPromoRate.toFixed(1)}%).
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {!isNaN(marketShare) && marketShare < 30 && (
-              <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-                <Target className="w-5 h-5 text-blue-500 mt-0.5" />
-                <div>
-                  <p className="font-medium text-blue-800">Opportunité d'expansion</p>
-                  <p className="text-sm text-blue-600">
-                    % total de la marque actuel de {marketShare.toFixed(1)}% - potentiel d'augmentation dans certaines
-                    catégories.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {!isNaN(competitivenessScore) && competitivenessScore > 70 && (
-              <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
-                <Award className="w-5 h-5 text-green-500 mt-0.5" />
-                <div>
-                  <p className="font-medium text-green-800">Position concurrentielle forte</p>
-                  <p className="text-sm text-green-600">
-                    Score de compétitivité excellent ({competitivenessScore.toFixed(0)}/100). Maintenir cette
-                    performance.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

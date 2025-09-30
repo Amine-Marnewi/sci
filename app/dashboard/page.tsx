@@ -27,6 +27,7 @@ import { PriceAnalysisChart } from "@/components/price-analysis-chart"
 import { MarketShareChart } from "@/components/market-share-chart"
 import { CompetitivePositioning } from "@/components/competitive-positioning"
 import { CompetitorsList } from "@/components/competitors-list"
+import { PromotionTrendsChart } from "@/components/promotion-trends-chart"
 import { CSVUploader } from "@/components/csv-uploader"
 import { useBrand, useBrandTheme } from "@/contexts/brand-context"
 import { useRequireAuth } from "@/hooks/use-auth"
@@ -212,6 +213,7 @@ export default function DashboardPage() {
                     <DropdownMenuItem onClick={() => handleNavigation("products")}>Produits</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleNavigation("analysis")}>Analyses</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleNavigation("positioning")}>Positionnement</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleNavigation("trends")}>Tendances Promos</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleNavigation("competitors")}>Concurrents</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -458,11 +460,12 @@ export default function DashboardPage() {
 
         {/* Tabs principales */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard">Tableau de Bord</TabsTrigger>
             <TabsTrigger value="products">Produits</TabsTrigger>
             <TabsTrigger value="analysis">Analyses</TabsTrigger>
             <TabsTrigger value="positioning">Positionnement</TabsTrigger>
+            <TabsTrigger value="trends">Tendances Promos</TabsTrigger>
             <TabsTrigger value="competitors">Concurrents</TabsTrigger>
           </TabsList>
 
@@ -483,6 +486,10 @@ export default function DashboardPage() {
 
           <TabsContent value="positioning">
             <CompetitivePositioning data={filteredData} />
+          </TabsContent>
+
+          <TabsContent value="trends">
+            <PromotionTrendsChart data={filteredData} />
           </TabsContent>
 
           <TabsContent value="competitors">

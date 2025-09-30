@@ -19,6 +19,7 @@ interface Product {
   URL: string | null
   promo_date_debut: string | null
   promo_date_fin: string | null
+  Source?: string | null
 }
 
 interface CatalogResultsTableProps {
@@ -79,18 +80,32 @@ export function CatalogResultsTable({ products, onBack }: CatalogResultsTablePro
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Source</TableHead>
                   <TableHead>Brand</TableHead>
                   <TableHead>Produit</TableHead>
                   <TableHead>Rayon</TableHead>
                   <TableHead>Famille</TableHead>
+                  <TableHead>Sous-famille</TableHead>
                   <TableHead>Grammage</TableHead>
                   <TableHead>Prix Avant</TableHead>
                   <TableHead>Prix Après</TableHead>
+                  <TableHead>URL</TableHead>
+                  <TableHead>Date Début</TableHead>
+                  <TableHead>Date Fin</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {currentProducts.map((product, index) => (
                   <TableRow key={index}>
+                    <TableCell>
+                      {product.Source ? (
+                        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+                          {product.Source}
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {product.Brand ? (
                         <Badge variant="outline">{product.Brand}</Badge>
@@ -110,7 +125,16 @@ export function CatalogResultsTable({ products, onBack }: CatalogResultsTablePro
                         <span className="text-gray-400">-</span>
                       )}
                     </TableCell>
-                    <TableCell>{product.Famille || "-"}</TableCell>
+                    <TableCell className="max-w-[150px]">
+                      <div className="truncate" title={product.Famille || ""}>
+                        {product.Famille || "-"}
+                      </div>
+                    </TableCell>
+                    <TableCell className="max-w-[150px]">
+                      <div className="truncate" title={product["Sous-famille"] || ""}>
+                        {product["Sous-famille"] || "-"}
+                      </div>
+                    </TableCell>
                     <TableCell>{product.Grammage || "-"}</TableCell>
                     <TableCell>
                       {product["Price Before (TND)"] ? (
@@ -125,6 +149,27 @@ export function CatalogResultsTable({ products, onBack }: CatalogResultsTablePro
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
+                    </TableCell>
+                    <TableCell className="max-w-[100px]">
+                      {product.URL ? (
+                        <a 
+                          href={product.URL} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline truncate block"
+                          title={product.URL}
+                        >
+                          Lien
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {product.promo_date_debut || "-"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {product.promo_date_fin || "-"}
                     </TableCell>
                   </TableRow>
                 ))}

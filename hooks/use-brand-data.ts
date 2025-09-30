@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import type { Product } from "@/app/dashboard/page"
 import { dataManager, type DataSource } from "@/lib/data-manager"
 import { useBrand } from "@/contexts/brand-context"
+import { getBrandConfiguration } from "@/lib/data-generator"
 
 export function useBrandData() {
   const { brandInfo } = useBrand()
@@ -24,7 +25,22 @@ export function useBrandData() {
     try {
       const result = await dataManager.getDataForBrand(brandInfo.brandName, brandInfo.industry, undefined, forceRefresh)
 
-      setData(result.data)
+      const brandConfig = getBrandConfiguration(brandInfo.brandName)
+      let filteredData = result.data
+
+      if (brandConfig && brandConfig.competitors && brandConfig.competitors.length > 0) {
+        // Include user's brand + selected competitors only
+        const allowedBrands = [brandInfo.brandName, ...brandConfig.competitors]
+        filteredData = result.data.filter((product) =>
+          allowedBrands.some((brand) => brand.toLowerCase().trim() === product.Brand.toLowerCase().trim()),
+        )
+        console.log("[v0] Filtering data by selected competitors:", brandConfig.competitors)
+        console.log("[v0] Filtered data from", result.data.length, "to", filteredData.length, "products")
+      } else {
+        console.log("[v0] No competitor filter applied - showing all data")
+      }
+
+      setData(filteredData)
       setDataSource(result.source)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data")
@@ -56,7 +72,18 @@ export function useBrandData() {
 
       await dataManager.importCSVData(userBrandName, csvData, userBrandProducts, competitors)
 
-      setData(csvData)
+      const brandConfig = getBrandConfiguration(brandInfo.brandName)
+      let filteredData = csvData
+
+      if (brandConfig && brandConfig.competitors && brandConfig.competitors.length > 0) {
+        const allowedBrands = [brandInfo.brandName, ...brandConfig.competitors]
+        filteredData = csvData.filter((product) =>
+          allowedBrands.some((brand) => brand.toLowerCase().trim() === product.Brand.toLowerCase().trim()),
+        )
+        console.log("[v0] Applied competitor filter to imported CSV data")
+      }
+
+      setData(filteredData)
       setDataSource("upload")
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to import CSV data"
@@ -82,6 +109,30 @@ export function useBrandData() {
       setIsLoading(false)
     }
   }, [brandInfo.brandName, brandInfo.industry])
+
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === `brand-config-${brandInfo.brandName}` && e.newValue) {
+        console.log("[v0] Brand configuration changed, reloading data with new competitor filter")
+        loadData(true)
+      }
+    }
+
+    window.addEventListener("storage", handleStorageChange)
+
+    // Also listen for custom events from the same tab
+    const handleConfigChange = () => {
+      console.log("[v0] Brand configuration updated, reloading data")
+      loadData(true)
+    }
+
+    window.addEventListener("brandConfigUpdated", handleConfigChange)
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange)
+      window.removeEventListener("brandConfigUpdated", handleConfigChange)
+    }
+  }, [brandInfo.brandName])
 
   return {
     data,

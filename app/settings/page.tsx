@@ -149,6 +149,12 @@ export default function SettingsPage() {
 
       localStorage.setItem(`brand-config-${brandInfo.brandName}`, JSON.stringify(fullConfig))
 
+      window.dispatchEvent(
+        new CustomEvent("brandConfigUpdated", {
+          detail: { brandName: brandInfo.brandName, config: fullConfig },
+        }),
+      )
+
       setSaveStatus("success")
       setTimeout(() => setSaveStatus("idle"), 3000)
     } catch (error) {
@@ -402,11 +408,8 @@ export default function SettingsPage() {
                           value={config.priceRange?.max || 50.0}
                           onChange={(e) =>
                             setConfig((prev) => ({
-                              ...prev,
-                              priceRange: {
-                                min: prev.priceRange?.min || 1.0,
-                                max: Number.parseFloat(e.target.value) || 50.0,
-                              },
+                              min: prev.priceRange?.min || 1.0,
+                              max: Number.parseFloat(e.target.value) || 50.0,
                             }))
                           }
                         />

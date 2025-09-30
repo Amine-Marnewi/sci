@@ -381,7 +381,8 @@ def perform_ocr_on_pdf_enhanced(
 
 
 # ----- simple LLM extraction (optional) -----
-def llm_extract_products_from_ocr(ocr_json: Dict[str, Any], openai_model: str = "gpt-4.1", max_tokens: int = 800) -> List[Dict[str, Any]]:
+def llm_extract_products_from_ocr(ocr_json: Dict[str, Any], openai_model: str = "gpt-4.1") -> List[Dict[str, Any]]:
+# def llm_extract_products_from_ocr(ocr_json: Dict[str, Any], max_tokens: int, openai_model: str = "gpt-4.1") -> List[Dict[str, Any]]:
     """
     Send OCR JSON to an LLM asking for strict JSON product list.
     This mirrors earlier PoC logic.
@@ -399,7 +400,7 @@ def llm_extract_products_from_ocr(ocr_json: Dict[str, Any], openai_model: str = 
         "role": "system",
         "content": (
         "You are a precise data extraction assistant."
-        "Your job: receive the raw OCR output produced by PaddleOCR (or other OCR engines) for every page of a e-catalog PDF of a supermarket, (which wraps PaddleOCR, PyMuPDF, or Tesseract), interpret geometric + textual cues, and return ONLY a JSON ARRAY (top-level) containing one object per product. No prose, no explanation, no markup — only valid JSON.\n\n"
+        "Your job: receive the raw OCR output produced by PaddleOCR (or other OCR engines) for every page of a e-catalog PDF of a specific supermarket, (which wraps PaddleOCR, PyMuPDF, or Tesseract), interpret geometric + textual cues, and return ONLY a JSON ARRAY that has every product of every page. No prose, no explanation, no markup, only valid JSON.\n\n"
         "--- IMPORTANT: two-source reality (raw OCR vs wrapper normalization)\n"
         "We use a wrapper that may normalize raw OCR output. Expect one of two shapes for each text item:\n"
         "  1) If the backend returned polygon boxes (PaddleOCR): you may see \"poly\": [[x1,y1],[x2,y2],[x3,y3],[x4,y4]] (clockwise) and additionally a normalized axis-aligned bbox computed by the wrapper as \"bbox\": [left,top,right,bottom].\n"
@@ -459,12 +460,13 @@ def llm_extract_products_from_ocr(ocr_json: Dict[str, Any], openai_model: str = 
         "Rayon": <string|null>,                   # product aisle/category inferred from the product
         "Famille": <string|null>,                 # product family inferred from product title/description
         "Sous-famille": <string|null>,            # product sub-family inferred from title/description
-        "Grammage": <string|null>,                # weight string if available, e.g. "Le paquet de 100g" or "500g", else null
+        "Grammage": <string|null>,                # weight string if available, e.g. "100g" or "500L", else null (DO NOT output any other information that isnt related to weight shouldnt be here)
         "Price Before (TND)": <string|null>,      # original price before promo if shown; string numeric with comma thousands, no currency symbol (e.g. "1,599"), else null
         "Price After (TND)": <string|null>,       # current price shown (after discount if applicable); string numeric with comma thousands, no currency symbol; DO NOT CALCULATE IT
         "URL": null,
-        "promo_date_debut": null,
-        "promo_date_fin": null
+        "promo_date_debut": <string|null>,        # date of the promo start under format DD/MM/YYYY (usually found at start of pdf catalog indicating when the prices of the catalog are going to be valid)
+        "promo_date_fin": <string|null>,          # date of the promo end under format DD/MM/YYYY (same as promo_date_debut)
+        "Source" : <string>                       # Source of the product only choose from these values ["Monoprix", "Carrefour", "Aziza", "MG", "Geant"] depending on info from scraped data or from pdf catalog name.
     },
     ...
     ]
@@ -512,7 +514,7 @@ def llm_extract_products_from_ocr(ocr_json: Dict[str, Any], openai_model: str = 
     - These are inferred categorical fields. Use product name and short description to infer them using common retail taxonomy (examples: "Électroménager", "Épicerie Sucrée", "Boissons", "Fruits & Légumes", "Hygiène", "Climatiseurs", "Biscuits", etc.). If unsure, prefer a conservative (higher-level) Rayon and set Famille/Sous-famille to null or to a plausible family name. Example inference (follow examples given to you).
 
     - Grammage:
-    - If weight/size tokens exist (e.g., "100g", "1kg", "500 mL", "Le paquet de 100g"), capture as a string exactly as it appears or normalized to "<number>g" style if clearly stated. If absent, set null.
+    - If weight/size tokens exist (e.g., "100g", "1kg", "500 mL"), capture as a string exactly as it appears or normalized to "<number>g" style if clearly stated. If nothing about the weight is specified, set null.
 
     --- MESSY TOKEN EXAMPLES (how to handle)
     - "35, 900 DT" → Price After (TND): "35,900"
@@ -533,17 +535,18 @@ def llm_extract_products_from_ocr(ocr_json: Dict[str, Any], openai_model: str = 
     --- EXAMPLES (valid outputs for two example products)
     Example A:
     {
-    "Brand": "CONDOR",
-    "Product": "Climatiseur CS09 AL44T3 (9000 BTU, Garantie 3 ans, compresseur 6 ans)",
-    "Rayon": "Électroménager",
-    "Price Before (TND)": "1,599",
-    "Price After (TND)": "1,339",
-    "Famille": "Climatiseurs",
-    "Sous-famille": "Climatiseurs fixes",
+    "Brand": "ALDIVIA",
+    "Product": "Gaufrettes enrobés de chocolat",
+    "Rayon": "Épicerie Sucrée",
+    "Price Before (TND)": "2,500",
+    "Price After (TND)": "1,990",
+    "Famille": "Biscuits",
+    "Sous-famille": "Gaufrettes",
     "Grammage": null,
     "URL": null,
-    "promo_date_debut": null,
-    "promo_date_fin": null
+    "promo_date_debut": 13/08/2025,
+    "promo_date_fin": 31/08/2025,
+    "Source": "Carrefour"
     }
 
     Example B:
@@ -555,20 +558,23 @@ def llm_extract_products_from_ocr(ocr_json: Dict[str, Any], openai_model: str = 
     "Price After (TND)": "8,460",
     "Famille": "Biscuits",
     "Sous-famille": "Biscuits au beurre",
-    "Grammage": "Le paquet de 100g",
+    "Grammage": "100g",
     "URL": null,
-    "promo_date_debut": null,
-    "promo_date_fin": null
+    "promo_date_debut": 13/08/2025,
+    "promo_date_fin": 31/08/2025,
+    "Source": "Geant"
     }
 
     --- FINAL INSTRUCTIONS (enforce strict behavior)
     1. Produce ONLY the final JSON array. Nothing else.
-    2. Be exhaustive and include every product detected in the provided OCR JSON input.
+    2. Be very exhaustive and include every product detected in the provided OCR JSON input, if the catalog has 100 products the JSON ARRAY should have 100 products.
     3. Do not invent data. Use `null` where information is absent or ambiguous.
     4. Normalize price strings as specified (concatenate split digit groups, remove currency letters, insert commas for thousands).
     5. Use geometric rules (bbox centers, overlap, column detection) to associate price with the correct product; price can be above or below the title and may be inside the same layout box.
     6. If the OCR confidence is very low (all nearby blocks < 0.3), still output the product but set uncertain fields to null.
-    7. The output must be parseable JSON and exactly follow the schema above.
+    7. If a product exists more than once with different prices (because of different weight for example or its in a bundle) mention each version as an independent item with its corresponding price.
+    8. The output must be parseable JSON and exactly follow the schema above.
+    
 
     If you understand these rules, process the OCR input and return the JSON array of product objects only.
     """
@@ -628,7 +634,10 @@ def process_pdf_file(pdf_path):
         return {"ok": False, "error": "OCR failed", "detail": str(e)}
 
     try:
-        res = llm_extract_products_from_ocr({"ok": True, "ocr": ocr_out}, openai_model="gpt-4.1", max_tokens=10000)
+        res = llm_extract_products_from_ocr({"ok": True, "ocr": ocr_out},
+                                            openai_model="gpt-4.1",
+                                            # max_tokens=10000
+                                            )
         return {"ok": True, "products": res}
         # json.dumps(res, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -636,7 +645,7 @@ def process_pdf_file(pdf_path):
 
 # Keep your original main() function for standalone testing
 def main():
-    PDF_PATH = r"C:\Users\VM764NY\Downloads\catalogue-special_froid.pdf"
+    # PDF_PATH = r"C:\Users\VM764NY\Downloads\catalogue-special_froid.pdf"
     
     # If called with a command line argument, use that instead
     if len(sys.argv) > 1:

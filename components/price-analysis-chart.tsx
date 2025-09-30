@@ -1,4 +1,8 @@
+"use client"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useState, useMemo } from "react"
 import {
   BarChart,
   Bar,
@@ -102,46 +106,97 @@ export function PriceAnalysisChart({ data }: PriceAnalysisChartProps) {
   const { brandInfo, formattedBrandName } = useBrand()
   const userBrand = formattedBrandName
 
-  const scatterData = data.map((product) => ({
-    name: product.Product,
-    brand: product.Brand,
-    grammage: product.Grammage,
-    price: product["Price After (TND)"],
-    pricePerGram: (product["Price After (TND)"] / product.Grammage) * 100,
-    isUserBrand: product.Brand?.toLowerCase().trim() === userBrand,
-  }))
+  const [selectedCompetitor, setSelectedCompetitor] = useState<string>("all")
 
-  const clusteredData = kMeansClustering(scatterData)
-  const clusterColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"]
-
-  const familyData = data.reduce(
-    (acc, product) => {
-      const family = product["Sous-famille"]
-      if (!acc[family]) {
-        acc[family] = { family, userBrand: [], competitors: [] }
+  // Get filtered competitors from localStorage (settings configuration)
+  const filteredCompetitors = useMemo(() => {
+    try {
+      const savedConfig = localStorage.getItem(`brand-config-${brandInfo.brandName}`)
+      if (savedConfig) {
+        const config = JSON.parse(savedConfig)
+        return config.competitors || []
       }
+    } catch (error) {
+      console.error("Error loading competitor configuration:", error)
+    }
+    return []
+  }, [brandInfo.brandName])
 
-      if (product.Brand?.toLowerCase().trim() === userBrand) {
-        acc[family].userBrand.push(product["Price After (TND)"])
-      } else {
-        acc[family].competitors.push(product["Price After (TND)"])
-      }
+  // SCATTER PLOT DATA - FIXED, ONLY CHANGES WITH SETTINGS
+  const scatterPlotData = useMemo(() => {
+    console.log("Recalculating scatter plot data - this should only happen when settings change")
+    
+    const filteredData = data.filter((product) => {
+      const isUserBrand = product.Brand?.toLowerCase().trim() === userBrand
+      if (isUserBrand) return true
+      
+      // Only apply settings filter
+      return filteredCompetitors.length === 0 || filteredCompetitors.includes(product.Brand)
+    })
 
-      return acc
-    },
-    {} as Record<string, { family: string; userBrand: number[]; competitors: number[] }>,
-  )
-
-  const barData = Object.values(familyData)
-    .map((item) => ({
-      family: item.family,
-      userBrandAvg: item.userBrand.length > 0 ? item.userBrand.reduce((a, b) => a + b, 0) / item.userBrand.length : 0,
-      competitorAvg:
-        item.competitors.length > 0 ? item.competitors.reduce((a, b) => a + b, 0) / item.competitors.length : 0,
-      userBrandCount: item.userBrand.length,
-      competitorCount: item.competitors.length,
+    const scatterData = filteredData.map((product) => ({
+      name: product.Product,
+      brand: product.Brand,
+      grammage: product.Grammage,
+      price: product["Price After (TND)"],
+      pricePerGram: (product["Price After (TND)"] / product.Grammage) * 100,
+      isUserBrand: product.Brand?.toLowerCase().trim() === userBrand,
     }))
-    .filter((item) => item.userBrandCount > 0 || item.competitorCount > 0)
+
+    return kMeansClustering(scatterData)
+  }, [data, userBrand, filteredCompetitors]) // ONLY these dependencies
+
+  // Available competitors for dropdown
+  const availableCompetitors = useMemo(() => {
+    return [...new Set(data.map((p) => p.Brand))]
+      .filter((brand) => brand && brand.toLowerCase().trim() !== userBrand)
+      .filter((brand) => filteredCompetitors.length === 0 || filteredCompetitors.includes(brand))
+      .sort()
+  }, [data, userBrand, filteredCompetitors])
+
+  // BAR CHART DATA - CHANGES WITH DROPDOWN SELECTION
+  const barChartData = useMemo(() => {
+    console.log("Recalculating bar chart data for competitor:", selectedCompetitor)
+    
+    const familyData = data.reduce(
+      (acc, product) => {
+        const family = product["Sous-famille"]
+        if (!acc[family]) {
+          acc[family] = { family, userBrand: [], competitors: [] }
+        }
+
+        if (product.Brand?.toLowerCase().trim() === userBrand) {
+          acc[family].userBrand.push(product["Price After (TND)"])
+        } else {
+          // Apply settings filter first
+          const passesSettingsFilter = filteredCompetitors.length === 0 || filteredCompetitors.includes(product.Brand)
+          if (!passesSettingsFilter) return acc
+          
+          // Then apply dropdown filter
+          const passesDropdownFilter = selectedCompetitor === "all" || product.Brand === selectedCompetitor
+          if (passesDropdownFilter) {
+            acc[family].competitors.push(product["Price After (TND)"])
+          }
+        }
+
+        return acc
+      },
+      {} as Record<string, { family: string; userBrand: number[]; competitors: number[] }>,
+    )
+
+    return Object.values(familyData)
+      .map((item) => ({
+        family: item.family,
+        userBrandAvg: item.userBrand.length > 0 ? item.userBrand.reduce((a, b) => a + b, 0) / item.userBrand.length : 0,
+        competitorAvg:
+          item.competitors.length > 0 ? item.competitors.reduce((a, b) => a + b, 0) / item.competitors.length : 0,
+        userBrandCount: item.userBrand.length,
+        competitorCount: item.competitors.length,
+      }))
+      .filter((item) => item.userBrandCount > 0 || item.competitorCount > 0)
+  }, [data, userBrand, selectedCompetitor, filteredCompetitors]) // includes selectedCompetitor
+
+  const clusterColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"]
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -168,7 +223,7 @@ export function PriceAnalysisChart({ data }: PriceAnalysisChartProps) {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
-            <ScatterChart data={clusteredData}>
+            <ScatterChart data={scatterPlotData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="grammage"
@@ -185,7 +240,7 @@ export function PriceAnalysisChart({ data }: PriceAnalysisChartProps) {
                 <Scatter
                   key={clusterIndex}
                   name={`Cluster ${clusterIndex + 1}`}
-                  data={clusteredData.filter((d) => d.cluster === clusterIndex)}
+                  data={scatterPlotData.filter((d) => d.cluster === clusterIndex)}
                   fill={clusterColors[clusterIndex]}
                   stroke={clusterColors[clusterIndex]}
                   strokeWidth={2}
@@ -194,7 +249,7 @@ export function PriceAnalysisChart({ data }: PriceAnalysisChartProps) {
               {/* Highlight user brand products */}
               <Scatter
                 name={brandInfo.brandName}
-                data={clusteredData.filter((d) => d.isUserBrand)}
+                data={scatterPlotData.filter((d) => d.isUserBrand)}
                 fill="#fbbf24"
                 stroke="#f59e0b"
                 strokeWidth={3}
@@ -207,11 +262,29 @@ export function PriceAnalysisChart({ data }: PriceAnalysisChartProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Comparaison Prix Moyens par Sous-famille</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Comparaison Prix Moyens par Sous-famille</CardTitle>
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium">Concurrent:</label>
+              <Select value={selectedCompetitor} onValueChange={setSelectedCompetitor}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Sélectionner un concurrent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les concurrents</SelectItem>
+                  {availableCompetitors.map((competitor) => (
+                    <SelectItem key={competitor} value={competitor}>
+                      {competitor}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={450}>
-            <BarChart data={barData} margin={{ bottom: 80, left: 20, right: 20, top: 20 }}>
+            <BarChart data={barChartData} margin={{ bottom: 80, left: 20, right: 20, top: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="family"
@@ -226,30 +299,26 @@ export function PriceAnalysisChart({ data }: PriceAnalysisChartProps) {
                 label={{ value: "Prix Moyen (TND)", angle: -90, position: "insideLeft" }}
                 tick={{ fontSize: 12 }}
               />
-              {/* <Tooltip
-                formatter={(value: number, name: string) => [
-                  `${value.toFixed(2)} TND`,
-                  name === "userBrandAvg" ? brandInfo.brandName : "Concurrents",
-                ]}
-              />
-              <Bar dataKey="userBrandAvg" fill="#eab308" name={brandInfo.brandName} />
-              <Bar dataKey="competitorAvg" fill="#6b7280" name="Concurrents" /> */}
               <Tooltip
                 formatter={(value: number, name: string) => {
-                  // If `name` is either the dataKey or the series name => it's the user brand
                   const isUserBrand =
-                    name === "userBrandAvg" ||
-                    name === brandInfo.brandName ||
-                    name === formattedBrandName;
+                    name === "userBrandAvg" || name === brandInfo.brandName || name === formattedBrandName
 
-                  const label = isUserBrand ? brandInfo.brandName : "Concurrents";
-                  return [`${value.toFixed(2)} TND`, label];
+                  const label = isUserBrand
+                    ? brandInfo.brandName
+                    : selectedCompetitor === "all"
+                      ? "Concurrents"
+                      : selectedCompetitor
+                  return [`${value.toFixed(2)} TND`, label]
                 }}
               />
 
               <Bar dataKey="userBrandAvg" fill="#eab308" name={brandInfo.brandName} />
-              <Bar dataKey="competitorAvg" fill="#6b7280" name="Concurrents" />
-
+              <Bar
+                dataKey="competitorAvg"
+                fill="#6b7280"
+                name={selectedCompetitor === "all" ? "Concurrents" : selectedCompetitor}
+              />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
